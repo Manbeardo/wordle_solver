@@ -1,6 +1,7 @@
 package wordspace
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 )
 
 var WorkerCount = 32
+var Verbose = false
 
 type Params = params.Params
 
@@ -83,11 +85,11 @@ func (idx WordSpace) copy() *WordSpace {
 }
 
 // Removes all words that don't have letter at pos
-func (idx WordSpace) WithGreenLetter(letter rune, pos int) WordSpace {
+func (idx WordSpace) withGreenLetter(letter util.Letter, pos int) WordSpace {
 	copy := idx.copy()
 
 	for letterIndex, words := range copy.pos2letter2words[pos] {
-		if util.IndexToRune(letterIndex) == letter {
+		if util.IndexToLetter(letterIndex) == letter {
 			continue
 		}
 		for word := range words {
@@ -100,16 +102,16 @@ func (idx WordSpace) WithGreenLetter(letter rune, pos int) WordSpace {
 }
 
 // Removes all words that have letter at pos or don't contain letter
-func (idx WordSpace) WithYellowLetter(letter rune, pos int) WordSpace {
+func (idx WordSpace) withYellowLetter(letter util.Letter, pos int) WordSpace {
 	copy := idx.copy()
 
-	wordsWithLetter := copy.letter2words[util.RuneToIndex(letter)]
+	wordsWithLetter := copy.letter2words[letter.AsIndex()]
 	for word := range copy.allWords {
 		if _, hasLetter := wordsWithLetter[word]; !hasLetter {
 			copy.removeWord(word)
 		}
 	}
-	for word := range copy.pos2letter2words[pos][util.RuneToIndex(letter)] {
+	for word := range copy.pos2letter2words[pos][letter.AsIndex()] {
 		copy.removeWord(word)
 	}
 	copy.params = copy.params.WithYellowLetter(letter, pos)
@@ -118,10 +120,10 @@ func (idx WordSpace) WithYellowLetter(letter rune, pos int) WordSpace {
 }
 
 // Removes all words that contain letter
-func (idx WordSpace) WithGrayLetter(letter rune) WordSpace {
+func (idx WordSpace) withGrayLetter(letter util.Letter) WordSpace {
 	copy := idx.copy()
 
-	for word := range copy.letter2words[util.RuneToIndex(letter)] {
+	for word := range copy.letter2words[letter.AsIndex()] {
 		copy.removeWord(word)
 	}
 	copy.params = copy.params.WithGrayLetter(letter)
@@ -166,12 +168,6 @@ func (idx WordSpace) GetGuessStats(guess string) GuessStats {
 		}()
 	}
 	workerWg.Wait()
-	if maxSize == 0 {
-		return GuessStats{
-			MaxSpaceSize: len(idx.allWords),
-			AvgSpaceSize: float64(len(idx.allWords)),
-		}
-	}
 	return GuessStats{
 		MaxSpaceSize: maxSize,
 		AvgSpaceSize: float64(sizeSum) / float64(len(idx.allWords)),
@@ -182,9 +178,20 @@ func (idx WordSpace) GetBestGuess() (string, GuessStats) {
 	bestGuess, bestStats := "", GuessStats{MaxSpaceSize: len(words.List) + 1}
 	for _, guess := range words.List {
 		guessStats := idx.GetGuessStats(guess)
-		if guessStats.MaxSpaceSize < bestStats.MaxSpaceSize ||
-			(guessStats.MaxSpaceSize == bestStats.MaxSpaceSize && guessStats.AvgSpaceSize < bestStats.AvgSpaceSize) {
+		_, guessIsPossibleAnswer := idx.allWords[guess]
+		isNewBest := guessStats.MaxSpaceSize < bestStats.MaxSpaceSize ||
+			(guessStats.MaxSpaceSize == bestStats.MaxSpaceSize && guessStats.AvgSpaceSize < bestStats.AvgSpaceSize) ||
+			(guessStats.MaxSpaceSize == bestStats.MaxSpaceSize && guessStats.AvgSpaceSize == bestStats.AvgSpaceSize && guessIsPossibleAnswer)
+		if isNewBest {
 			bestGuess, bestStats = guess, guessStats
+		}
+		if Verbose {
+			toPrint := []interface{}{}
+			if isNewBest {
+				toPrint = append(toPrint, "[NEW BEST!]")
+			}
+			toPrint = append(toPrint, guess, guessStats)
+			fmt.Println(toPrint...)
 		}
 	}
 	return bestGuess, bestStats
@@ -233,22 +240,22 @@ func GetSize(p Params) int {
 func getWordSpaceImpl(p Params) WordSpace {
 	// recursively unroll the changes
 	for pos, letter := range p.GreenLetters {
-		if letter != rune(0) {
-			return Get(p.WithoutGreenLetter(pos)).WithGreenLetter(letter, pos)
+		if letter != util.EmptyLetter {
+			return Get(p.WithoutGreenLetter(pos)).withGreenLetter(letter, pos)
 		}
 	}
 	for pos, letterIndexList := range p.YellowLetters {
 		for letterIndex, isSet := range letterIndexList {
 			if isSet {
-				letter := util.IndexToRune(letterIndex)
-				return Get(p.WithoutYellowLetter(letter, pos)).WithYellowLetter(letter, pos)
+				letter := util.IndexToLetter(letterIndex)
+				return Get(p.WithoutYellowLetter(letter, pos)).withYellowLetter(letter, pos)
 			}
 		}
 	}
 	for letterIndex, isSet := range p.GrayLetters {
 		if isSet {
-			letter := util.IndexToRune(letterIndex)
-			return Get(p.WithoutGrayLetter(letter)).WithGrayLetter(letter)
+			letter := util.IndexToLetter(letterIndex)
+			return Get(p.WithoutGrayLetter(letter)).withGrayLetter(letter)
 		}
 	}
 

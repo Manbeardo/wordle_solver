@@ -7,26 +7,33 @@ import (
 )
 
 func main() {
-	ws := wordspace.Get(wordspace.Params{})
-	fmt.Println("soare", ws.GetGuessStats("soare"))
-	ws = ws.
-		WithGrayLetter('s').
-		WithGrayLetter('o').
-		WithGrayLetter('a').
-		WithGreenLetter('r', 3).
-		WithYellowLetter('e', 4)
-	fmt.Println(ws.GetBestGuess())
-	ws = ws.
-		WithYellowLetter('e', 0).
-		WithYellowLetter('y', 1).
-		WithYellowLetter('e', 1).
-		WithGreenLetter('e', 2).
-		WithGreenLetter('r', 3).
-		WithGrayLetter('s')
-	fmt.Println(ws.GetBestGuess())
+	// wordspace.Verbose = true
+	// ws := wordspace.Get(wordspace.Params{})
+	// bestGuess, bestGuessStats := ws.GetBestGuess()
+	// fmt.Println("best guess:", bestGuess, bestGuessStats)
 
-	ws = wordspace.Get(wordspace.Params{}.WithGuessForAnswer("soare", "query"))
-	fmt.Println(ws.GetBestGuess())
-	ws = wordspace.Get(ws.GetParams().WithGuessForAnswer("eyers", "query"))
+	ws := wordspace.Get(
+		wordspace.Params{}.
+			WithGrayLetter('s').
+			WithGrayLetter('e').
+			WithGrayLetter('r').
+			WithGrayLetter('a').
+			WithGrayLetter('i').
+			WithGrayLetter('p').
+			WithGrayLetter('h').
+			WithYellowLetter('o', 2).
+			WithGrayLetter('n').
+			WithGreenLetter('y', 4).
+			WithGrayLetter('m').
+			WithGrayLetter('u').
+			WithYellowLetter('l', 2).
+			WithGrayLetter('c').
+			WithGrayLetter('t').
+			WithGrayLetter('d').
+			WithYellowLetter('w', 1).
+			WithGrayLetter('a').
+			WithGrayLetter('n').
+			WithGrayLetter('g'),
+	)
 	fmt.Println(ws.GetBestGuess())
 }
