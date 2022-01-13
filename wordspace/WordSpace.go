@@ -16,6 +16,13 @@ var Verbose = false
 
 type Params = params.Params
 
+type GuessScoringMode int
+
+const (
+	ScoreByLowestMaxSize GuessScoringMode = iota
+	ScoreByLowestAvgSize
+)
+
 type WordSpace struct {
 	params           Params
 	letter2words     [26]map[string]struct{}
@@ -24,8 +31,9 @@ type WordSpace struct {
 }
 
 type GuessStats struct {
-	MaxSpaceSize int
-	AvgSpaceSize float64
+	MaxSpaceSize     int
+	AvgSpaceSize     float64
+	IsPossibleAnswer bool
 }
 
 func buildBaseWordSpace() WordSpace {
@@ -167,21 +175,88 @@ func (idx WordSpace) GetGuessStats(guess string) GuessStats {
 			}
 		}()
 	}
+	_, guessIsPossibleAnswer := idx.allWords[guess]
+
 	workerWg.Wait()
 	return GuessStats{
-		MaxSpaceSize: maxSize,
-		AvgSpaceSize: float64(sizeSum) / float64(len(idx.allWords)),
+		MaxSpaceSize:     maxSize,
+		AvgSpaceSize:     float64(sizeSum) / float64(len(idx.allWords)),
+		IsPossibleAnswer: guessIsPossibleAnswer,
 	}
 }
 
-func (idx WordSpace) GetBestGuess() (string, GuessStats) {
-	bestGuess, bestStats := "", GuessStats{MaxSpaceSize: len(words.List) + 1}
+type metric struct {
+	isBetter func(current GuessStats, best GuessStats) bool
+	isEqual  func(current GuessStats, best GuessStats) bool
+}
+
+func guessStatsAreBetter(metrics []metric, current GuessStats, best GuessStats) bool {
+	for _, m := range metrics {
+		if m.isBetter(current, best) {
+			return true
+		}
+		if !m.isEqual(current, best) {
+			return false
+		}
+	}
+	return false
+}
+
+var maxSpaceSizeMetric = metric{
+	isBetter: func(current GuessStats, best GuessStats) bool {
+		if best.MaxSpaceSize == 0 {
+			return true
+		}
+		return current.MaxSpaceSize < best.MaxSpaceSize
+	},
+	isEqual: func(current GuessStats, best GuessStats) bool {
+		return current.MaxSpaceSize == best.MaxSpaceSize
+	},
+}
+var avgSpaceSizeMetric = metric{
+	isBetter: func(current GuessStats, best GuessStats) bool {
+		if best.AvgSpaceSize == 0 {
+			return true
+		}
+		return current.AvgSpaceSize < best.AvgSpaceSize
+	},
+	isEqual: func(current GuessStats, best GuessStats) bool {
+		return current.AvgSpaceSize == best.AvgSpaceSize
+	},
+}
+var guessIsPossibleAnswerMetric = metric{
+	isBetter: func(current GuessStats, best GuessStats) bool {
+		return current.IsPossibleAnswer && !best.IsPossibleAnswer
+	},
+	isEqual: func(current GuessStats, best GuessStats) bool {
+		return current.IsPossibleAnswer == best.IsPossibleAnswer
+	},
+}
+
+func getMetricsForScoringMode(mode GuessScoringMode) []metric {
+	if mode == ScoreByLowestAvgSize {
+		return []metric{
+			avgSpaceSizeMetric,
+			maxSpaceSizeMetric,
+			guessIsPossibleAnswerMetric,
+		}
+	}
+	if mode == ScoreByLowestMaxSize {
+		return []metric{
+			maxSpaceSizeMetric,
+			avgSpaceSizeMetric,
+			guessIsPossibleAnswerMetric,
+		}
+	}
+	panic("unrecognized scoring mode!")
+}
+
+func (idx WordSpace) GetBestGuess(mode GuessScoringMode) (string, GuessStats) {
+	bestGuess, bestStats := "", GuessStats{}
+	metrics := getMetricsForScoringMode(mode)
 	for _, guess := range words.List {
 		guessStats := idx.GetGuessStats(guess)
-		_, guessIsPossibleAnswer := idx.allWords[guess]
-		isNewBest := guessStats.MaxSpaceSize < bestStats.MaxSpaceSize ||
-			(guessStats.MaxSpaceSize == bestStats.MaxSpaceSize && guessStats.AvgSpaceSize < bestStats.AvgSpaceSize) ||
-			(guessStats.MaxSpaceSize == bestStats.MaxSpaceSize && guessStats.AvgSpaceSize == bestStats.AvgSpaceSize && guessIsPossibleAnswer)
+		isNewBest := guessStatsAreBetter(metrics, guessStats, bestStats)
 		if isNewBest {
 			bestGuess, bestStats = guess, guessStats
 		}
