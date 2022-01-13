@@ -14,21 +14,23 @@ func main() {
 	// bestGuess, bestGuessStats := ws.GetBestGuess()
 	// fmt.Println("best guess:", bestGuess, bestGuessStats)
 
-	testSolver("favor")
+	testSolver("abbey")
 }
 
 func testSolverForScoringMode(mode wordspace.GuessScoringMode, answer string) {
 	params := wordspace.Params{}
-	emojiLines := []string{}
-	for guess := "serai"; guess != answer; {
+	guess := "serai"
+
+	emojiLines := []string{
+		fmt.Sprintf("%s ||%s||", getEmojiForGuess(guess, answer), guess),
+	}
+	for guess != answer {
 		var stats wordspace.GuessStats
-		emojiLines = append(emojiLines, getEmojiForGuess(guess, answer)+" "+guess)
 		params = params.WithGuessForAnswer(guess, answer)
 		guess, stats = wordspace.Get(params).GetBestGuess(mode)
+		emojiLines = append(emojiLines, fmt.Sprintf("%s ||%s||", getEmojiForGuess(guess, answer), guess))
 		fmt.Println(guess, stats)
 	}
-	emojiLines = append(emojiLines, getEmojiForGuess(answer, answer)+" "+answer)
-	fmt.Println(answer, "correct!")
 	fmt.Println(strings.Join(emojiLines, "\n"))
 }
 
