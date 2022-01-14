@@ -50,7 +50,7 @@ func buildBaseWordSpace() WordSpace {
 	for letterIndex := range idx.letter2words {
 		idx.letter2words[letterIndex] = map[string]struct{}{}
 	}
-	for _, word := range words.List {
+	for _, word := range words.Answers {
 		idx.allWords[word] = struct{}{}
 		for pos, letter := range word {
 			idx.pos2letter2words[pos][util.RuneToIndex(letter)][word] = struct{}{}
@@ -93,7 +93,7 @@ func (idx WordSpace) copy() *WordSpace {
 }
 
 // Removes all words that don't have letter at pos
-func (idx WordSpace) withGreenLetter(letter util.Letter, pos int) WordSpace {
+func (idx WordSpace) withCorrectLetter(letter util.Letter, pos int) WordSpace {
 	copy := idx.copy()
 
 	for letterIndex, words := range copy.pos2letter2words[pos] {
@@ -104,13 +104,13 @@ func (idx WordSpace) withGreenLetter(letter util.Letter, pos int) WordSpace {
 			copy.removeWord(word)
 		}
 	}
-	copy.params = copy.params.WithGreenLetter(letter, pos)
+	copy.params = copy.params.WithCorrectLetter(letter, pos)
 
 	return *copy
 }
 
 // Removes all words that have letter at pos or don't contain letter
-func (idx WordSpace) withYellowLetter(letter util.Letter, pos int) WordSpace {
+func (idx WordSpace) withElsewhereLetter(letter util.Letter, pos int) WordSpace {
 	copy := idx.copy()
 
 	wordsWithLetter := copy.letter2words[letter.AsIndex()]
@@ -122,19 +122,19 @@ func (idx WordSpace) withYellowLetter(letter util.Letter, pos int) WordSpace {
 	for word := range copy.pos2letter2words[pos][letter.AsIndex()] {
 		copy.removeWord(word)
 	}
-	copy.params = copy.params.WithYellowLetter(letter, pos)
+	copy.params = copy.params.WithElsewhereLetter(letter, pos)
 
 	return *copy
 }
 
 // Removes all words that contain letter
-func (idx WordSpace) withGrayLetter(letter util.Letter) WordSpace {
+func (idx WordSpace) withAbsentLetter(letter util.Letter) WordSpace {
 	copy := idx.copy()
 
 	for word := range copy.letter2words[letter.AsIndex()] {
 		copy.removeWord(word)
 	}
-	copy.params = copy.params.WithGrayLetter(letter)
+	copy.params = copy.params.WithAbsentLetter(letter)
 
 	return *copy
 }
@@ -254,7 +254,7 @@ func getMetricsForScoringMode(mode GuessScoringMode) []metric {
 func (idx WordSpace) GetBestGuess(mode GuessScoringMode) (string, GuessStats) {
 	bestGuess, bestStats := "", GuessStats{}
 	metrics := getMetricsForScoringMode(mode)
-	for _, guess := range words.List {
+	for _, guess := range words.All {
 		guessStats := idx.GetGuessStats(guess)
 		isNewBest := guessStatsAreBetter(metrics, guessStats, bestStats)
 		if isNewBest {
@@ -314,23 +314,23 @@ func GetSize(p Params) int {
 
 func getWordSpaceImpl(p Params) WordSpace {
 	// recursively unroll the changes
-	for pos, letter := range p.GreenLetters {
+	for pos, letter := range p.CorrectLetters {
 		if letter != util.EmptyLetter {
-			return Get(p.WithoutGreenLetter(pos)).withGreenLetter(letter, pos)
+			return Get(p.WithoutCorrectLetter(pos)).withCorrectLetter(letter, pos)
 		}
 	}
-	for pos, letterIndexList := range p.YellowLetters {
+	for pos, letterIndexList := range p.ElsewhereLetters {
 		for letterIndex, isSet := range letterIndexList {
 			if isSet {
 				letter := util.IndexToLetter(letterIndex)
-				return Get(p.WithoutYellowLetter(letter, pos)).withYellowLetter(letter, pos)
+				return Get(p.WithoutElsewhereLetter(letter, pos)).withElsewhereLetter(letter, pos)
 			}
 		}
 	}
-	for letterIndex, isSet := range p.GrayLetters {
+	for letterIndex, isSet := range p.AbsentLetters {
 		if isSet {
 			letter := util.IndexToLetter(letterIndex)
-			return Get(p.WithoutGrayLetter(letter)).withGrayLetter(letter)
+			return Get(p.WithoutAbsentLetter(letter)).withAbsentLetter(letter)
 		}
 	}
 
