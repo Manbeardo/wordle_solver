@@ -7,7 +7,15 @@ import (
 	"github.com/manbeardo/wordle_solver/util"
 )
 
+type WordList int
+
+const (
+	WordListAnswers WordList = iota
+	WordListAll
+)
+
 type Params struct {
+	WordList         WordList
 	AbsentLetters    util.LetterFlagArray
 	ElsewhereLetters [5]util.LetterFlagArray
 	CorrectLetters   [5]util.Letter

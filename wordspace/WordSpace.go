@@ -21,7 +21,13 @@ type GuessScoringMode int
 const (
 	ScoreByLowestMaxSize GuessScoringMode = iota
 	ScoreByLowestAvgSize
+	ScoreByHighestMaxSize
 )
+
+type GuessOptions struct {
+	ScoringMode GuessScoringMode
+	HardMode    bool
+}
 
 type WordSpace struct {
 	params           Params
@@ -36,7 +42,7 @@ type GuessStats struct {
 	IsPossibleAnswer bool
 }
 
-func buildBaseWordSpace() WordSpace {
+func buildWordSpace(wordList []string) WordSpace {
 	idx := WordSpace{
 		pos2letter2words: [5][26]map[string]struct{}{},
 		letter2words:     [26]map[string]struct{}{},
@@ -50,7 +56,7 @@ func buildBaseWordSpace() WordSpace {
 	for letterIndex := range idx.letter2words {
 		idx.letter2words[letterIndex] = map[string]struct{}{}
 	}
-	for _, word := range words.Answers {
+	for _, word := range wordList {
 		idx.allWords[word] = struct{}{}
 		for pos, letter := range word {
 			idx.pos2letter2words[pos][util.RuneToIndex(letter)][word] = struct{}{}
@@ -248,13 +254,36 @@ func getMetricsForScoringMode(mode GuessScoringMode) []metric {
 			guessIsPossibleAnswerMetric,
 		}
 	}
+	if mode == ScoreByHighestMaxSize {
+		return []metric{
+			{
+				isBetter: func(current GuessStats, best GuessStats) bool {
+					if best.MaxSpaceSize == 0 {
+						return true
+					}
+					return current.MaxSpaceSize > best.MaxSpaceSize
+				},
+				isEqual: func(current GuessStats, best GuessStats) bool {
+					return current.MaxSpaceSize == best.MaxSpaceSize
+				},
+			},
+		}
+	}
 	panic("unrecognized scoring mode!")
 }
 
-func (idx WordSpace) GetBestGuess(mode GuessScoringMode) (string, GuessStats) {
+func (idx WordSpace) GetBestGuess(options GuessOptions) (string, GuessStats) {
 	bestGuess, bestStats := "", GuessStats{}
-	metrics := getMetricsForScoringMode(mode)
-	for _, guess := range words.All {
+	metrics := getMetricsForScoringMode(options.ScoringMode)
+	var wordList []string
+	if options.HardMode {
+		guessParams := idx.params
+		guessParams.WordList = params.WordListAll
+		wordList = Get(guessParams).GetWords()
+	} else {
+		wordList = words.All
+	}
+	for _, guess := range wordList {
 		guessStats := idx.GetGuessStats(guess)
 		isNewBest := guessStatsAreBetter(metrics, guessStats, bestStats)
 		if isNewBest {
@@ -335,5 +364,13 @@ func getWordSpaceImpl(p Params) WordSpace {
 	}
 
 	// empty params, build the base space
-	return buildBaseWordSpace()
+	var wordList []string
+	if p.WordList == params.WordListAll {
+		wordList = words.All
+	} else if p.WordList == params.WordListAnswers {
+		wordList = words.Answers
+	} else {
+		panic("unsupported WordList")
+	}
+	return buildWordSpace(wordList)
 }
