@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/manbeardo/wordle_solver/letterflagarray"
 	"github.com/manbeardo/wordle_solver/util"
 )
 
@@ -16,8 +17,8 @@ const (
 
 type Params struct {
 	WordList         WordList
-	AbsentLetters    util.LetterFlagArray
-	ElsewhereLetters [5]util.LetterFlagArray
+	AbsentLetters    letterflagarray.LetterFlagArray
+	ElsewhereLetters [5]letterflagarray.LetterFlagArray
 	CorrectLetters   [5]util.Letter
 }
 

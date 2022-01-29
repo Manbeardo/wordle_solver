@@ -1,7 +1,6 @@
 package util
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -62,26 +61,16 @@ func (l Letter) AsIndex() int {
 	return RuneToIndex(rune(l))
 }
 
-type LetterFlagArray [26]bool
-
-func (lfa LetterFlagArray) String() string {
-	strs := []string{}
-	for letterIndex, isSet := range lfa {
-		if isSet {
-			strs = append(strs, IndexToLetter(letterIndex).String())
+func GetEmojiForGuess(guess string, answer string) string {
+	emojis := []string{}
+	for _, letterInfo := range GetResult(guess, answer) {
+		if letterInfo.Color == ColorGreen {
+			emojis = append(emojis, "🟩")
+		} else if letterInfo.Color == ColorYellow {
+			emojis = append(emojis, "🟨")
+		} else if letterInfo.Color == ColorGray {
+			emojis = append(emojis, "⬜")
 		}
 	}
-	return fmt.Sprintf("[%s]", strings.Join(strs, " "))
-}
-
-func (lfa LetterFlagArray) HasLetter(letter Letter) bool {
-	return lfa[letter.AsIndex()]
-}
-
-func (lfa *LetterFlagArray) AddLetter(letter Letter) {
-	lfa[letter.AsIndex()] = true
-}
-
-func (lfa *LetterFlagArray) RemoveLetter(letter Letter) {
-	lfa[letter.AsIndex()] = false
+	return strings.Join(emojis, " ")
 }
